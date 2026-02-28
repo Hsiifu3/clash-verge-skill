@@ -158,8 +158,7 @@ def cmd_status(args):
     ver = api("GET", "/version")
     cfg = api("GET", "/configs")
     conns = api("GET", "/connections")
-    mem = None
-    # Memory is a streaming endpoint, skip it
+    proxies_data = api("GET", "/proxies")
 
     nc = len(conns.get("connections", []))
     up = conns.get("uploadTotal", 0)
@@ -173,6 +172,26 @@ def cmd_status(args):
     print(f"Log level: {cfg.get('log-level', '?')}")
     print(f"Connections: {nc} active")
     print(f"Traffic: ↑ {_fmt_bytes(up)}  ↓ {_fmt_bytes(down)}")
+
+    # Show current proxy selections
+    proxies = proxies_data.get("proxies", {})
+    group_types = ("Selector", "URLTest", "Fallback", "LoadBalance")
+    groups = {k: v for k, v in proxies.items() if v.get("type") in group_types}
+    if groups:
+        print(f"\nProxy groups:")
+        for name, g in sorted(groups.items()):
+            now = g.get("now", "-")
+            # Resolve chain: if 'now' is also a group, follow it
+            chain = [now]
+            seen = {name}
+            cur = now
+            while cur in proxies and proxies[cur].get("type") in group_types and cur not in seen:
+                seen.add(cur)
+                cur = proxies[cur].get("now", "")
+                if cur:
+                    chain.append(cur)
+            chain_str = " → ".join(chain)
+            print(f"  {name}: {chain_str}")
 
 
 def cmd_mode(args):
